@@ -1,8 +1,10 @@
 use std::thread;
 
+use sqlx::{Pool, Postgres};
+
 use crate::db::{self, IterableIP};
 
-pub fn ip_by_iterator(ip_index: u64) -> String {
+pub fn ip_by_iterator(ip_index: i64) -> String {
     let ip = format!(
         "{}.{}.{}.{}",
         ip_index / 16777216,
@@ -13,35 +15,28 @@ pub fn ip_by_iterator(ip_index: u64) -> String {
     ip
 }
 
-fn worker_thread(id: u64, from: u64, to: u64) {
+async fn worker_thread(client: Pool<Postgres>, id: i64, from: i64, to: i64) {
     let mut ip_index = from;
-    loop {
+
+    //loop {
         if ip_index == to {
             ip_index = from;
         }
 
         let ip = ip_by_iterator(ip_index);
+        ping_to_ip(client.clone(), id, &ip, &ip_index).await;
 
-        // ping ip asynchronously
-        let ip_cpy = ip.clone();
-
-        thread::spawn(move || {
-            let ip_index = ip_index.clone();
-            let ip_cpy = ip_cpy.clone();
-            let _ = ping_to_ip(id, &ip_cpy, &ip_index);
-        });
-
-        if ip_index % 10000000 == 0 {
-            println!("[worker-{}]: {}", id, ip);
-        }
         ip_index += 1;
-    }
+    //}
 }
 
-pub fn start_worker() {
-    let from = 0;
-    let to = 4294967296;
-    let thread_count: u64 = 12;
+pub async fn start_worker() {
+    let db_handle = db::db_get_handle().await;
+    println!("worker manager received handle");
+
+    let from: i64 = 0;
+    let to: i64 = 4294967296;
+    let thread_count: i64 = 1024;
 
     let range = to - from;
     let range_per_thread = range / thread_count;
@@ -55,9 +50,12 @@ pub fn start_worker() {
         let from = from.clone();
         let to = to.clone();
 
+        let db_handle_clone = db_handle.clone();
         let handle = thread::spawn(move || {
             println!("[worker-{}] thread started: {} - {}", i, from, to);
-            worker_thread(i, from, to);
+            tokio::runtime::Runtime::new()
+                .unwrap()
+                .block_on(worker_thread(db_handle_clone, i, from, to));
             println!("[worker-{}]  thread finished: {} - {}", i, from, to);
         });
 
@@ -69,9 +67,7 @@ pub fn start_worker() {
     }
 }
 
-fn ping_to_ip(id: u64, ip: &String, ip_index: &u64) {
-    println!("[worker-{}] Pinging: {}", id, ip);
-
+async fn ping_to_ip(client: Pool<Postgres>, id: i64, ip: &String, ip_index: &i64) {
     let data = [0; 0];
     let timeout = std::time::Duration::from_secs(1);
 
@@ -85,21 +81,33 @@ fn ping_to_ip(id: u64, ip: &String, ip_index: &u64) {
 
     match result {
         Ok(reply) => {
-            println!("[worker-{}] Reply: {:?}", id, reply);
+            println!("[worker-{}] successful reply from {:?}", id, reply.address);
 
-            let latency = reply.rtt;
-            db::insert_ip(IterableIP {
-                id: ip_index.to_owned(),
-                ip: ip.to_owned(),
-                latency: latency,
-                online: true,
-            })
+            let latency: i64 = reply.rtt as i64;
+            db::insert_ip(
+                id,
+                client,
+                IterableIP {
+                    id: ip_index.to_owned(),
+                    ip: ip.to_owned(),
+                    latency: latency,
+                    online: true,
+                },
+            )
+            .await;
         }
-        Err(_) => db::insert_ip(IterableIP {
-            id: ip_index.to_owned(),
-            ip: ip.to_owned(),
-            latency: 0,
-            online: false,
-        }),
+        Err(_) => {
+            db::insert_ip(
+                id,
+                client,
+                IterableIP {
+                    id: ip_index.to_owned(),
+                    ip: ip.to_owned(),
+                    latency: 0,
+                    online: false,
+                },
+            )
+            .await
+        }
     }
 }

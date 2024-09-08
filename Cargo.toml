@@ -5,5 +5,5 @@ edition = "2021"
 
 [dependencies]
 ping-rs = "0.1.2"
-rand = "0.8.5"
-sqlite = "0.36.1"
+sqlx = { version = "0.8.2", features = ["macros", "postgres", "runtime-tokio"] }
+tokio = { version = "1.40.0", features = ["full"] }
