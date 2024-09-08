@@ -1,0 +1,9 @@
+[package]
+name = "worker"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ping-rs = "0.1.2"
+rand = "0.8.5"
+sqlite = "0.36.1"
