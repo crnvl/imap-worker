@@ -18,7 +18,7 @@ pub fn ip_by_iterator(ip_index: i64) -> String {
 async fn worker_thread(client: Pool<Postgres>, id: i64, from: i64, to: i64) {
     let mut ip_index = from;
 
-    //loop {
+    loop {
         if ip_index == to {
             ip_index = from;
         }
@@ -27,7 +27,7 @@ async fn worker_thread(client: Pool<Postgres>, id: i64, from: i64, to: i64) {
         ping_to_ip(client.clone(), id, &ip, &ip_index).await;
 
         ip_index += 1;
-    //}
+    }
 }
 
 pub async fn start_worker() {
