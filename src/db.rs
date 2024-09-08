@@ -39,7 +39,6 @@ pub async fn create_table() {
 }
 
 pub async fn insert_ip(id: i64, client: Pool<Postgres>, ip: IterableIP) {
-    // insert or replace
     let statement = format!(
         "
         INSERT INTO iterable_ip (id, ip, latency, online)

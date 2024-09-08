@@ -69,7 +69,7 @@ pub async fn start_worker() {
 
 async fn ping_to_ip(client: Pool<Postgres>, id: i64, ip: &String, ip_index: &i64) {
     let data = [0; 0];
-    let timeout = std::time::Duration::from_secs(1);
+    let timeout = std::time::Duration::from_millis(400);
 
     let options = ping_rs::PingOptions {
         ttl: 128,
